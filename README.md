@@ -1,148 +1,143 @@
-# Tambo Template
+# Tambo + DuckDB-WASM Template
 
-This is a starter NextJS app with Tambo hooked up to get your AI app development started quickly.
+This is a specialized Next.js template that integrates **Tambo AI** with **DuckDB-WASM**, enabling high-performance, in-browser data analytics powered by AI.
 
-## Get Started
+With this template, you can build applications where users upload data files (CSV, Parquet, JSON) and interact with them using natural language, all without sending raw data to a backend server.
 
-1. Run `npm create-tambo@latest my-tambo-app` for a new project
+## Features
 
-2. `npm install`
+- **In-Browser SQL Engine**: Fully integrated DuckDB-WASM running client-side.
+- **Privacy-First Architecture**: Data files are processed locally on the user's device. The raw dataset is **never uploaded** to a server; only specific query results are shared with the AI for analysis.
+- **Data File Support**: Upload and process `.csv`, `.parquet`, and `.json` files instantly.
+- **AI Analytics**: Pre-configured Tambo tools (`executeDuckDBQuery`, `getTableStats`) allow the AI to query your data.
+- **React Integration**: Custom `DuckDBContext` and hooks for seamless state management.
+- **Chat UI Integration**: Data upload controls embedded directly into the Tambo chat interface.
 
-3. `npx tambo init`
+## Getting Started
 
-- or rename `example.env.local` to `.env.local` and add your tambo API key you can get for free [here](https://tambo.co/dashboard).
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-4. Run `npm run dev` and go to `localhost:3000` to use the app!
+2. **Configure Tambo**
+   Rename `example.env.local` to `.env.local` and add your Tambo API key (get one [here](https://tambo.co/dashboard)):
+   ```bash
+   NEXT_PUBLIC_TAMBO_API_KEY=your_api_key_here
+   ```
 
-## Customizing
+3. **Run Development Server**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000/chat](http://localhost:3000/chat) to start.
 
-### Change what components tambo can control
+## Usage
 
-You can see how the `Graph` component is registered with tambo in `src/lib/tambo.ts`:
+### 1. Upload Data
+In the chat interface, click the **Database Icon** (next to the paperclip) in the toolbar to upload a file.
+Supported formats:
+- **CSV**: Text-based spreadsheet data.
+- **Parquet**: high-efficiency columnar storage.
+- **JSON**: Newline-delimited or standard JSON arrays.
 
-```tsx
-const components: TamboComponent[] = [
-  {
-    name: "Graph",
-    description:
-      "A component that renders various types of charts (bar, line, pie) using Recharts. Supports customizable data visualization with labels, datasets, and styling options.",
-    component: Graph,
-    propsSchema: z.object({
-      data: z
-        .object({
-          type: z
-            .enum(["bar", "line", "pie"])
-            .describe("Type of graph to render"),
-          labels: z.array(z.string()).describe("Labels for the graph"),
-          datasets: z
-            .array(
-              z.object({
-                label: z.string().describe("Label for the dataset"),
-                data: z
-                  .array(z.number())
-                  .describe("Data points for the dataset"),
-                color: z
-                  .string()
-                  .optional()
-                  .describe("Optional color for the dataset"),
-              }),
-            )
-            .describe("Data for the graph"),
-        })
-        .describe("Data object containing chart configuration and values"),
-      title: z.string().optional().describe("Optional title for the chart"),
-      showLegend: z
-        .boolean()
-        .optional()
-        .describe("Whether to show the legend (default: true)"),
-      variant: z
-        .enum(["default", "solid", "bordered"])
-        .optional()
-        .describe("Visual style variant of the graph"),
-      size: z
-        .enum(["default", "sm", "lg"])
-        .optional()
-        .describe("Size of the graph"),
-    }),
-  },
-  // Add more components for Tambo to control here!
-];
+### 2. Chat with Data
+Once a file is uploaded (e.g., `sales.csv`), you can ask questions like:
+- "Show me the summary statistics of the sales table."
+- "What is the total revenue grouped by region?"
+- "Find the top 5 products by sales volume."
+
+The AI uses the registered `executeDuckDBQuery` tool to run real SQL queries against your local DuckDB instance.
+
+
+## Data Flow
+
+The following sequence describes how data travels from the user's local machine to the in-browser database and how the AI interacts with it:
+
+1.  **User Upload**: User selects a file (e.g., `data.csv`) via the chat interface button.
+2.  **File Registration**: The raw `File` buffer is registered into DuckDB-WASM's virtual file system.
+3.  **Table Creation**: A SQL command (`CREATE TABLE "data" AS SELECT * FROM ...`) ingests the file into an **in-memory** table using DuckDB's optimized readers.
+4.  **Metadata Extraction**: The system automatically runs `SUMMARIZE` to capture column statistics (min, max, types) for the AI context.
+5.  **State Update**: The file is added to the React Context state, making it visible in the UI.
+6.  **AI Querying**:
+    *   User asks a question (e.g., "Analyze the data").
+    *   Tambo AI invokes the `executeDuckDBQuery` tool.
+    *   The query executes against the in-memory table.
+    *   Results are returned to the AI to generate a natural language response.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI as Chat UI
+    participant Ctx as DuckDBContext
+    participant DB as DuckDB (WASM)
+    participant AI as Tambo AI
+
+    User->>UI: Uploads file (data.csv)
+    UI->>Ctx: addDataFile(file)
+    Ctx->>DB: registerFileBuffer(file)
+    Ctx->>DB: CREATE TABLE "data" ...
+    DB-->>Ctx: Success
+    Ctx->>DB: SUMMARIZE "data"
+    DB-->>Ctx: Column Stats
+    Ctx-->>UI: Update loadedFiles state
+    UI-->>User: Show file badge
+
+    User->>AI: "Analyze this data"
+    AI->>Ctx: executeDuckDBQuery("SELECT ...")
+    Ctx->>DB: Run SQL Query
+    DB-->>Ctx: Return Results
+    Ctx-->>AI: JSON Data
+    AI-->>User: Explain insights
 ```
 
-You can install this graph component into any project with:
+## Project Structure
 
-```bash
-npx tambo add graph
-```
+- **`src/services/duckdb.ts`**
+  Core service that initializes DuckDB-WASM, handles file loading, and executes low-level queries.
 
-The example Graph component demonstrates several key features:
+- **`src/contexts/DuckDBContext.tsx`**
+  React Context provider that manages the database lifecycle and loaded files state. providing hooks like `useDuckDBContext`.
 
-- Different prop types (strings, arrays, enums, nested objects)
-- Multiple chart types (bar, line, pie)
-- Customizable styling (variants, sizes)
-- Optional configurations (title, legend, colors)
-- Data visualization capabilities
+- **`src/services/duckdb-query.ts`**
+  AI-compatible wrapper functions (`executeDuckDBQuery`) designed to be used as Tambo tools.
 
-Update the `components` array with any component(s) you want tambo to be able to use in a response!
+- **`src/lib/tambo.ts`**
+  Configuration file where DuckDB tools are registered for the AI to use.
 
-You can find more information about the options [here](https://tambo.co/docs/concepts/registering-components)
+- **`next.config.ts`**
+  configured with Webpack aliases to ensure the browser-compatible version of DuckDB (`duckdb-browser.mjs`) is used, preventing build errors.
 
-### Add tools for tambo to use
+## Customization
 
-```tsx
+### Adding New Tools
+You can add more specialized query tools in `src/lib/tambo.ts`. For example, a tool to perform specific data transformations:
+
+```typescript
+// src/lib/tambo.ts
+import { specializedQuery } from "@/services/my-queries";
+
 export const tools: TamboTool[] = [
+  // ... existing tools
   {
-    name: "globalPopulation",
-    description:
-      "A tool to get global population trends with optional year range filtering",
-    tool: getGlobalPopulationTrend,
-    toolSchema: z.function().args(
-      z
-        .object({
-          startYear: z.number().optional(),
-          endYear: z.number().optional(),
-        })
-        .optional(),
-    ),
-  },
+    name: "specializedQuery",
+    description: "Performs a specific analysis",
+    tool: specializedQuery,
+    toolSchema: z.function()...
+  }
 ];
 ```
 
-Find more information about tools [here.](https://tambo.co/docs/concepts/tools)
+### Modifying the UI
+The upload button is integrated into `src/components/tambo/message-thread-full.tsx`. You can customize its appearance or location by editing that component.
 
-### The Magic of Tambo Requires the TamboProvider
+## Troubleshooting
 
-Make sure in the TamboProvider wrapped around your app:
+- **"Critical dependency" Warnings**: These are normal during the build process regarding `duckdb-node.cjs` but are handled by the alias configuration in `next.config.ts`.
+- **Memory Usage**: The development server uses significant memory (~2.5GB+) due to Next.js caching. This is expected.
+- **File Size Limits**: Since DuckDB runs in-browser, available memory limits file sizes (typically a few GBs depending on the device).
 
-```tsx
-...
-<TamboProvider
-  apiKey={process.env.NEXT_PUBLIC_TAMBO_API_KEY!}
-  components={components} // Array of components to control
-  tools={tools} // Array of tools it can use
->
-  {children}
-</TamboProvider>
-```
+## Learn More
 
-In this example we do this in the `Layout.tsx` file, but you can do it anywhere in your app that is a client component.
-
-### Change where component responses are shown
-
-The components used by tambo are shown alongside the message resopnse from tambo within the chat thread, but you can have the result components show wherever you like by accessing the latest thread message's `renderedComponent` field:
-
-```tsx
-const { thread } = useTambo();
-const latestComponent =
-  thread?.messages[thread.messages.length - 1]?.renderedComponent;
-
-return (
-  <div>
-    {latestComponent && (
-      <div className="my-custom-wrapper">{latestComponent}</div>
-    )}
-  </div>
-);
-```
-
-For more detailed documentation, visit [Tambo's official docs](https://docs.tambo.co).
+- [DuckDB-WASM Documentation](https://duckdb.org/docs/api/wasm/overview)
+- [Tambo Documentation](https://docs.tambo.co)
