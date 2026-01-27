@@ -15,6 +15,10 @@ import {
   MessageSuggestionsList,
   MessageSuggestionsStatus,
 } from "@/components/tambo/message-suggestions";
+import {
+  DataFileButton,
+  LoadedDataFilesList,
+} from "@/components/data-file-input";
 import { ScrollableMessageContainer } from "@/components/tambo/scrollable-message-container";
 import {
   ThreadContainer,
@@ -117,8 +121,10 @@ export const MessageThreadFull = React.forwardRef<
         {/* Message input */}
         <div className="px-4 pb-4">
           <MessageInput contextKey={contextKey}>
+            <LoadedDataFilesList />
             <MessageInputTextarea placeholder="Type your message or paste images..." />
             <MessageInputToolbar>
+              <DataFileButton className="w-10 h-10 rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-muted flex items-center justify-center" />
               <MessageInputFileButton />
               <MessageInputMcpPromptButton />
               {/* Uncomment this to enable client-side MCP config modal button */}

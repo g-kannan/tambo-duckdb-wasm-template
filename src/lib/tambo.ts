@@ -13,6 +13,13 @@ import { DataCard, dataCardSchema } from "@/components/ui/card-data";
 import type { TamboComponent } from "@tambo-ai/react";
 import { TamboTool } from "@tambo-ai/react";
 
+import {
+  executeDuckDBQuery,
+  getAvailableTablesInfo,
+  getTableStats,
+} from "@/services/duckdb-query";
+import { z } from "zod";
+
 /**
  * tools
  *
@@ -22,7 +29,70 @@ import { TamboTool } from "@tambo-ai/react";
  */
 
 export const tools: TamboTool[] = [
-  // Add your tools here
+  {
+    name: "executeDuckDBQuery",
+    description: "Execute a SQL query on the in-browser DuckDB instance",
+    tool: executeDuckDBQuery,
+    toolSchema: z
+      .function()
+      .args(
+        z.object({
+          sql: z.string().describe(" The SQL query to execute"),
+          limit: z.number().optional().describe("Optional limit for the number of rows to return"),
+        })
+      )
+      .returns(
+        z.object({
+          success: z.boolean(),
+          data: z.array(z.record(z.any())).optional(),
+          rowCount: z.number().optional(),
+          error: z.string().optional(),
+        })
+      ),
+  },
+  {
+    name: "getAvailableTablesInfo",
+    description: "Get information about all available tables in DuckDB",
+    tool: getAvailableTablesInfo,
+    toolSchema: z
+      .function()
+      .returns(
+        z.object({
+          tables: z.array(
+            z.object({
+              tableName: z.string(),
+              columns: z.array(
+                z.object({
+                  column_name: z.string(),
+                  data_type: z.string(),
+                })
+              ),
+              rowCount: z.number(),
+            })
+          ),
+          totalTables: z.number(),
+        })
+      ),
+  },
+  {
+    name: "getTableStats",
+    description: "Get summary statistics for a specific table",
+    tool: getTableStats,
+    toolSchema: z
+      .function()
+      .args(
+        z.object({
+          tableName: z.string().describe("The name of the table to analyze"),
+        })
+      )
+      .returns(
+        z.object({
+          success: z.boolean(),
+          stats: z.array(z.record(z.any())).optional(),
+          error: z.string().optional(),
+        })
+      ),
+  },
 ];
 
 /**

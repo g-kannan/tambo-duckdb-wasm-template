@@ -15,6 +15,7 @@ import { components, tools } from "@/lib/tambo";
 import { TamboProvider } from "@tambo-ai/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { DataFileButton, LoadedDataFilesList } from "@/components/data-file-input";
 import { SettingsPanel } from "./components/settings-panel";
 
 export default function InteractablesPage() {
@@ -30,9 +31,8 @@ export default function InteractablesPage() {
       <div className="flex h-screen bg-gray-50">
         {/* Chat Sidebar */}
         <div
-          className={`${
-            isChatOpen ? "w-80" : "w-0"
-          } border-r border-gray-200 bg-white transition-all duration-300 flex flex-col relative`}
+          className={`${isChatOpen ? "w-80" : "w-0"
+            } border-r border-gray-200 bg-white transition-all duration-300 flex flex-col relative`}
         >
           {isChatOpen && (
             <>
@@ -53,8 +53,11 @@ export default function InteractablesPage() {
                   contextKey="interactables-demo"
                   variant="bordered"
                 >
-                  <MessageInputTextarea placeholder="Update the settings..." />
+                  <LoadedDataFilesList />
+                  <MessageInputTextarea placeholder="Ask questions about your data..." />
                   <MessageInputToolbar>
+                    <DataFileButton className="w-10 h-10 rounded-lg border border-border bg-background text-foreground transition-colors hover:bg-muted flex items-center justify-center" />
+                    <div className="flex-1" />
                     <MessageInputSubmitButton />
                   </MessageInputToolbar>
                 </MessageInput>
