@@ -1,18 +1,20 @@
-import * as duckdb from "@duckdb/duckdb-wasm";
+import type { AsyncDuckDB, AsyncDuckDBConnection } from "@duckdb/duckdb-wasm";
 
-let db: duckdb.AsyncDuckDB | null = null;
-let conn: duckdb.AsyncDuckDBConnection | null = null;
+let db: AsyncDuckDB | null = null;
+let conn: AsyncDuckDBConnection | null = null;
 
 /**
  * Initialize DuckDB-WASM with automatic bundle selection
  */
 export async function initDuckDB(): Promise<{
-    db: duckdb.AsyncDuckDB;
-    conn: duckdb.AsyncDuckDBConnection;
+    db: AsyncDuckDB;
+    conn: AsyncDuckDBConnection;
 }> {
     if (db && conn) {
         return { db, conn };
     }
+
+    const duckdb = await import("@duckdb/duckdb-wasm");
 
     // Use JsDelivr CDN bundles
     const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
@@ -44,7 +46,7 @@ export async function initDuckDB(): Promise<{
 /**
  * Get the current DuckDB connection
  */
-export async function getConnection(): Promise<duckdb.AsyncDuckDBConnection> {
+export async function getConnection(): Promise<AsyncDuckDBConnection> {
     if (!conn) {
         await initDuckDB();
     }

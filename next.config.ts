@@ -16,13 +16,15 @@ const nextConfig: NextConfig = {
         path: false,
         crypto: false,
       };
-
-      // Force usages of @duckdb/duckdb-wasm to use the browser build
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        "@duckdb/duckdb-wasm": "@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
-      };
     }
+
+    // Force usages of @duckdb/duckdb-wasm to use the browser build
+    // This applies to both client and server builds to prevent the Node.js bundle
+    // from being picked up during SSR (which causes critical dependency warnings)
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@duckdb/duckdb-wasm": "@duckdb/duckdb-wasm/dist/duckdb-browser.mjs",
+    };
 
     return config;
   },
