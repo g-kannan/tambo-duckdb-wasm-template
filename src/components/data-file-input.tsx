@@ -6,7 +6,6 @@ import {
     useDuckDBContext,
     DATA_FILE_ACCEPT,
     isDataFile,
-    type LoadedDataFile,
 } from "@/contexts/DuckDBContext";
 
 /**

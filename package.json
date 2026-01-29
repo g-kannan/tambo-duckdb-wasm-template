@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
     "init": "npx tambo init"
   },
   "dependencies": {
@@ -31,7 +31,6 @@
     "streamdown": "^1.6.7"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/dompurify": "^3.2.0",
     "@types/node": "^24.3.0",
