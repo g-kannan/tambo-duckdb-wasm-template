@@ -26,82 +26,31 @@ function SettingsPanelBase(props: SettingsProps) {
   const [settings, setSettings] = useState<SettingsProps>(props);
   const [emailError, setEmailError] = useState<string>("");
   const [updatedFields, setUpdatedFields] = useState<Set<string>>(new Set());
-  const prevPropsRef = useRef<SettingsProps>(props);
+  const clearUpdatedFieldsTimeoutRef = useRef<number | null>(null);
 
-  // Update local state when props change from Tambo
   useEffect(() => {
-    const prevProps = prevPropsRef.current;
-    console.log("Props effect triggered");
-    console.log("Previous props:", prevProps);
-    console.log("Current props:", props);
+    return () => {
+      if (clearUpdatedFieldsTimeoutRef.current != null) {
+        clearTimeout(clearUpdatedFieldsTimeoutRef.current);
+      }
+    };
+  }, []);
 
-    // Find which fields changed
-    const changedFields = new Set<string>();
+  const markUpdatedFields = (fields: string[]) => {
+    setUpdatedFields(new Set(fields));
+    if (clearUpdatedFieldsTimeoutRef.current != null) {
+      clearTimeout(clearUpdatedFieldsTimeoutRef.current);
+    }
+    clearUpdatedFieldsTimeoutRef.current = window.setTimeout(() => {
+      setUpdatedFields(new Set());
+    }, 1000);
+  };
 
-    // Check each field for changes
-    if (props.name !== prevProps.name) {
-      changedFields.add("name");
-      console.log("Name changed:", prevProps.name, "->", props.name);
-    }
-    if (props.email !== prevProps.email) {
-      changedFields.add("email");
-      console.log("Email changed:", prevProps.email, "->", props.email);
-    }
-    if (props.theme !== prevProps.theme) {
-      changedFields.add("theme");
-      console.log("Theme changed:", prevProps.theme, "->", props.theme);
-    }
-    if (props.language !== prevProps.language) {
-      changedFields.add("language");
-      console.log(
-        "Language changed:",
-        prevProps.language,
-        "->",
-        props.language,
-      );
-    }
-
-    // Check notification fields
-    if (props.notifications.email !== prevProps.notifications.email) {
-      changedFields.add("notifications.email");
-    }
-    if (props.notifications.push !== prevProps.notifications.push) {
-      changedFields.add("notifications.push");
-    }
-    if (props.notifications.sms !== prevProps.notifications.sms) {
-      changedFields.add("notifications.sms");
-    }
-
-    // Check privacy fields
-    if (props.privacy.shareAnalytics !== prevProps.privacy.shareAnalytics) {
-      changedFields.add("privacy.shareAnalytics");
-    }
-    if (
-      props.privacy.personalizationEnabled !==
-      prevProps.privacy.personalizationEnabled
-    ) {
-      changedFields.add("privacy.personalizationEnabled");
-    }
-
-    console.log("Changed fields:", Array.from(changedFields));
-
-    // Update state and ref
-    setSettings(props);
-    prevPropsRef.current = props;
-
-    if (changedFields.size > 0) {
-      setUpdatedFields(changedFields);
-      // Clear highlights after animation
-      const timer = setTimeout(() => {
-        setUpdatedFields(new Set());
-        console.log("Cleared animation fields");
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [props]);
-
-  const handleChange = (updates: Partial<SettingsProps>) => {
+  const handleChange = (updates: Partial<SettingsProps>, fields: string[]) => {
     setSettings((prev) => ({ ...prev, ...updates }));
+    if (fields.length > 0) {
+      markUpdatedFields(fields);
+    }
 
     // Validate email if it's being updated
     if ("email" in updates) {
@@ -132,7 +81,7 @@ function SettingsPanelBase(props: SettingsProps) {
               <input
                 type="text"
                 value={settings.name}
-                onChange={(e) => handleChange({ name: e.target.value })}
+                onChange={(e) => handleChange({ name: e.target.value }, ["name"])}
                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   updatedFields.has("name") ? "animate-pulse" : ""
                 }`}
@@ -145,7 +94,9 @@ function SettingsPanelBase(props: SettingsProps) {
               <input
                 type="email"
                 value={settings.email}
-                onChange={(e) => handleChange({ email: e.target.value })}
+                onChange={(e) =>
+                  handleChange({ email: e.target.value }, ["email"])
+                }
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   emailError ? "border-red-500" : "border-gray-300"
                 } ${updatedFields.has("email") ? "animate-pulse" : ""}`}
@@ -177,7 +128,7 @@ function SettingsPanelBase(props: SettingsProps) {
                       ...settings.notifications,
                       email: e.target.checked,
                     },
-                  })
+                  }, ["notifications.email"])
                 }
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
               />
@@ -199,7 +150,7 @@ function SettingsPanelBase(props: SettingsProps) {
                       ...settings.notifications,
                       push: e.target.checked,
                     },
-                  })
+                  }, ["notifications.push"])
                 }
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
               />
@@ -221,7 +172,7 @@ function SettingsPanelBase(props: SettingsProps) {
                       ...settings.notifications,
                       sms: e.target.checked,
                     },
-                  })
+                  }, ["notifications.sms"])
                 }
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
               />
@@ -245,7 +196,7 @@ function SettingsPanelBase(props: SettingsProps) {
                 onChange={(e) =>
                   handleChange({
                     theme: e.target.value as "light" | "dark" | "system",
-                  })
+                  }, ["theme"])
                 }
                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   updatedFields.has("theme") ? "animate-pulse" : ""
@@ -265,7 +216,7 @@ function SettingsPanelBase(props: SettingsProps) {
                 onChange={(e) =>
                   handleChange({
                     language: e.target.value as "en" | "es" | "fr" | "de",
-                  })
+                  }, ["language"])
                 }
                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   updatedFields.has("language") ? "animate-pulse" : ""
@@ -300,7 +251,7 @@ function SettingsPanelBase(props: SettingsProps) {
                       ...settings.privacy,
                       shareAnalytics: e.target.checked,
                     },
-                  })
+                  }, ["privacy.shareAnalytics"])
                 }
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
               />
@@ -324,7 +275,7 @@ function SettingsPanelBase(props: SettingsProps) {
                       ...settings.privacy,
                       personalizationEnabled: e.target.checked,
                     },
-                  })
+                  }, ["privacy.personalizationEnabled"])
                 }
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
               />

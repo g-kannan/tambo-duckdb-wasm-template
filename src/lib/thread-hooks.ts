@@ -37,7 +37,7 @@ export function useMergeRefs<Instance>(
     return () => {
       cleanups.forEach((refCleanup) => refCleanup?.());
     };
-  }, refs);
+  }, [refs]);
 
   return React.useMemo(() => {
     if (refs.every((ref) => ref == null)) {
@@ -56,7 +56,7 @@ export function useMergeRefs<Instance>(
           refEffect(value);
       }
     };
-  }, refs);
+  }, [refEffect, refs]);
 }
 /**
  * Custom hook to detect canvas space presence and position
