@@ -23,10 +23,12 @@ const settingsSchema = z.object({
 type SettingsProps = z.infer<typeof settingsSchema>;
 
 function SettingsPanelBase(props: SettingsProps) {
-  const [settings, setSettings] = useState<SettingsProps>(props);
+  const [draftSettings, setDraftSettings] = useState<SettingsProps | null>(null);
   const [emailError, setEmailError] = useState<string>("");
   const [updatedFields, setUpdatedFields] = useState<Set<string>>(new Set());
   const clearUpdatedFieldsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const settings = draftSettings ?? props;
 
   useEffect(() => {
     return () => {
@@ -49,7 +51,7 @@ function SettingsPanelBase(props: SettingsProps) {
   };
 
   const handleChange = (updates: Partial<SettingsProps>, fields: string[]) => {
-    setSettings((prev) => ({ ...prev, ...updates }));
+    setDraftSettings((prev) => ({ ...(prev ?? props), ...updates }));
     if (fields.length > 0) {
       markUpdatedFields(fields);
     }
