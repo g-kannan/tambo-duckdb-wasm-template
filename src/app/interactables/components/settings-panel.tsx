@@ -26,7 +26,7 @@ function SettingsPanelBase(props: SettingsProps) {
   const [settings, setSettings] = useState<SettingsProps>(props);
   const [emailError, setEmailError] = useState<string>("");
   const [updatedFields, setUpdatedFields] = useState<Set<string>>(new Set());
-  const clearUpdatedFieldsTimeoutRef = useRef<number | null>(null);
+  const clearUpdatedFieldsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
@@ -40,9 +40,11 @@ function SettingsPanelBase(props: SettingsProps) {
     setUpdatedFields(new Set(fields));
     if (clearUpdatedFieldsTimeoutRef.current != null) {
       clearTimeout(clearUpdatedFieldsTimeoutRef.current);
+      clearUpdatedFieldsTimeoutRef.current = null;
     }
-    clearUpdatedFieldsTimeoutRef.current = window.setTimeout(() => {
+    clearUpdatedFieldsTimeoutRef.current = setTimeout(() => {
       setUpdatedFields(new Set());
+      clearUpdatedFieldsTimeoutRef.current = null;
     }, 1000);
   };
 

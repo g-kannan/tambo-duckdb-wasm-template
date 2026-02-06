@@ -6,9 +6,15 @@ let initPromise:
     | Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBConnection }>
     | null = null;
 
+const MAX_IDENTIFIER_LENGTH = 256;
+const MAX_STRING_LITERAL_LENGTH = 4096;
+
 function quoteIdentifier(identifier: string): string {
     if (identifier.includes("\0")) {
         throw new Error("Identifier contains invalid null byte");
+    }
+    if (identifier.length > MAX_IDENTIFIER_LENGTH) {
+        throw new Error("Identifier is too long");
     }
     return `"${identifier.replace(/"/g, '""')}"`;
 }
@@ -16,6 +22,9 @@ function quoteIdentifier(identifier: string): string {
 function sqlStringLiteral(value: string): string {
     if (value.includes("\0")) {
         throw new Error("String literal contains invalid null byte");
+    }
+    if (value.length > MAX_STRING_LITERAL_LENGTH) {
+        throw new Error("String literal is too long");
     }
     return `'${value.replace(/'/g, "''")}'`;
 }
@@ -50,12 +59,13 @@ export async function initDuckDB(): Promise<{
             })
         );
 
+        let worker: Worker | null = null;
         let nextDb: AsyncDuckDB | null = null;
         let nextConn: AsyncDuckDBConnection | null = null;
 
         try {
             // Create worker and logger
-            const worker = new Worker(workerUrl);
+            worker = new Worker(workerUrl);
             const logger = new duckdb.ConsoleLogger();
 
             // Instantiate DuckDB
@@ -75,6 +85,9 @@ export async function initDuckDB(): Promise<{
             }
             if (nextDb) {
                 await nextDb.terminate();
+            }
+            if (worker) {
+                worker.terminate();
             }
             throw error;
         } finally {

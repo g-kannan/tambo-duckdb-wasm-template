@@ -45,7 +45,7 @@ export async function executeDuckDBQuery(params: {
                 ? Math.max(1, Math.min(10_000, Math.floor(params.limit)))
                 : null;
 
-        if (limit && !sql.toLowerCase().includes("limit")) {
+        if (limit !== null && !sql.toLowerCase().includes("limit")) {
             sql = `${sql.replace(/;?\s*$/, "")} LIMIT ${limit}`;
         }
 
