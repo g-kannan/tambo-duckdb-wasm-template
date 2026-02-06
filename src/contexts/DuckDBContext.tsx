@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, {
+    createContext,
+    useContext,
+    useState,
+    useCallback,
+    useRef,
+} from "react";
 import {
     initDuckDB,
     loadDataFile,
@@ -51,29 +57,36 @@ export function DuckDBProvider({ children }: { children: React.ReactNode }) {
     const [isInitializing, setIsInitializing] = useState(false);
     const [loadedFiles, setLoadedFiles] = useState<LoadedDataFile[]>([]);
     const [error, setError] = useState<Error | null>(null);
+    const initPromiseRef = useRef<Promise<void> | null>(null);
 
     // Lazy initialization - DuckDB is initialized on first use
     const ensureInitialized = useCallback(async () => {
         if (isReady) return;
-        if (isInitializing) {
-            while (isInitializing) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-            }
-            return;
+
+        if (initPromiseRef.current) {
+            return initPromiseRef.current;
         }
 
         setIsInitializing(true);
-        try {
-            await initDuckDB();
-            setIsReady(true);
-            setError(null);
-        } catch (err) {
-            setError(err instanceof Error ? err : new Error(String(err)));
-            throw err;
-        } finally {
-            setIsInitializing(false);
-        }
-    }, [isReady, isInitializing]);
+
+        initPromiseRef.current = initDuckDB()
+            .then(() => {
+                setIsReady(true);
+                setError(null);
+            })
+            .catch((err) => {
+                const error =
+                    err instanceof Error ? err : new Error(String(err));
+                setError(error);
+                throw error;
+            })
+            .finally(() => {
+                setIsInitializing(false);
+                initPromiseRef.current = null;
+            });
+
+        return initPromiseRef.current;
+    }, [isReady]);
 
     const addDataFile = useCallback(
         async (file: File): Promise<LoadedDataFile> => {

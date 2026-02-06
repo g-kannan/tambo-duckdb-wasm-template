@@ -39,8 +39,14 @@ export async function executeDuckDBQuery(params: {
         await initDuckDB();
 
         let sql = params.sql.trim();
-        if (params.limit && !sql.toLowerCase().includes("limit")) {
-            sql = `${sql.replace(/;?\s*$/, "")} LIMIT ${params.limit}`;
+
+        const limit =
+            typeof params.limit === "number" && Number.isFinite(params.limit)
+                ? Math.max(1, Math.min(10_000, Math.floor(params.limit)))
+                : null;
+
+        if (limit !== null && !sql.toLowerCase().includes("limit")) {
+            sql = `${sql.replace(/;?\s*$/, "")} LIMIT ${limit}`;
         }
 
         const rawData = await queryAsObjects(sql);

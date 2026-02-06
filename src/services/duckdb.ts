@@ -2,6 +2,32 @@ import type { AsyncDuckDB, AsyncDuckDBConnection } from "@duckdb/duckdb-wasm";
 
 let db: AsyncDuckDB | null = null;
 let conn: AsyncDuckDBConnection | null = null;
+let initPromise:
+    | Promise<{ db: AsyncDuckDB; conn: AsyncDuckDBConnection }>
+    | null = null;
+
+const MAX_IDENTIFIER_LENGTH = 256;
+const MAX_STRING_LITERAL_LENGTH = 4096;
+
+function quoteIdentifier(identifier: string): string {
+    if (identifier.includes("\0")) {
+        throw new Error("Identifier contains invalid null byte");
+    }
+    if (identifier.length > MAX_IDENTIFIER_LENGTH) {
+        throw new Error("Identifier is too long");
+    }
+    return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+function sqlStringLiteral(value: string): string {
+    if (value.includes("\0")) {
+        throw new Error("String literal contains invalid null byte");
+    }
+    if (value.length > MAX_STRING_LITERAL_LENGTH) {
+        throw new Error("String literal is too long");
+    }
+    return `'${value.replace(/'/g, "''")}'`;
+}
 
 /**
  * Initialize DuckDB-WASM with automatic bundle selection
@@ -14,33 +40,66 @@ export async function initDuckDB(): Promise<{
         return { db, conn };
     }
 
-    const duckdb = await import("@duckdb/duckdb-wasm");
+    if (initPromise) {
+        return initPromise;
+    }
 
-    // Use JsDelivr CDN bundles
-    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+    initPromise = (async () => {
+        const duckdb = await import("@duckdb/duckdb-wasm");
 
-    // Select the best bundle for the browser
-    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+        // Use JsDelivr CDN bundles
+        const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
-    const worker_url = URL.createObjectURL(
-        new Blob([`importScripts("${bundle.mainWorker}");`], {
-            type: "text/javascript",
-        })
-    );
+        // Select the best bundle for the browser
+        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
 
-    // Create worker and logger
-    const worker = new Worker(worker_url);
-    const logger = new duckdb.ConsoleLogger();
+        const workerUrl = URL.createObjectURL(
+            new Blob([`importScripts("${bundle.mainWorker}");`], {
+                type: "text/javascript",
+            })
+        );
 
-    // Instantiate DuckDB
-    db = new duckdb.AsyncDuckDB(logger, worker);
-    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-    URL.revokeObjectURL(worker_url);
+        let worker: Worker | null = null;
+        let nextDb: AsyncDuckDB | null = null;
+        let nextConn: AsyncDuckDBConnection | null = null;
 
-    // Create connection
-    conn = await db.connect();
+        try {
+            // Create worker and logger
+            worker = new Worker(workerUrl);
+            const logger = new duckdb.ConsoleLogger();
 
-    return { db, conn };
+            // Instantiate DuckDB
+            nextDb = new duckdb.AsyncDuckDB(logger, worker);
+            await nextDb.instantiate(bundle.mainModule, bundle.pthreadWorker);
+
+            // Create connection
+            nextConn = await nextDb.connect();
+
+            db = nextDb;
+            conn = nextConn;
+
+            return { db: nextDb, conn: nextConn };
+        } catch (error) {
+            if (nextConn) {
+                await nextConn.close();
+            }
+            if (nextDb) {
+                await nextDb.terminate();
+            }
+            if (worker) {
+                worker.terminate();
+            }
+            throw error;
+        } finally {
+            URL.revokeObjectURL(workerUrl);
+        }
+    })();
+
+    try {
+        return await initPromise;
+    } finally {
+        initPromise = null;
+    }
 }
 
 /**
@@ -87,8 +146,9 @@ export async function getTables(): Promise<string[]> {
 export async function getTableSchema(
     tableName: string
 ): Promise<{ column_name: string; data_type: string }[]> {
+    const quotedTableName = quoteIdentifier(tableName);
     return queryAsObjects<{ column_name: string; data_type: string }>(
-        `DESCRIBE "${tableName}"`
+        `DESCRIBE ${quotedTableName}`
     );
 }
 
@@ -96,8 +156,9 @@ export async function getTableSchema(
  * Get row count for a table
  */
 export async function getTableRowCount(tableName: string): Promise<number> {
+    const quotedTableName = quoteIdentifier(tableName);
     const result = await queryAsObjects<{ count: number }>(
-        `SELECT COUNT(*) as count FROM "${tableName}"`
+        `SELECT COUNT(*) as count FROM ${quotedTableName}`
     );
     return result[0]?.count ?? 0;
 }
@@ -124,8 +185,9 @@ export interface ColumnSummary {
  * Get summary statistics for a table using DuckDB's SUMMARIZE
  */
 export async function summarizeTable(tableName: string): Promise<ColumnSummary[]> {
+    const quotedTableName = quoteIdentifier(tableName);
     const result = await queryAsObjects<ColumnSummary>(
-        `SUMMARIZE SELECT * FROM "${tableName}"`
+        `SUMMARIZE SELECT * FROM ${quotedTableName}`
     );
     return result;
 }
@@ -148,10 +210,11 @@ export async function loadCSVFile(
     await db!.registerFileBuffer(file.name, uint8Array);
 
     const connection = await getConnection();
-    await connection.query(`
-    CREATE OR REPLACE TABLE "${tableName}" AS 
-    SELECT * FROM read_csv_auto('${file.name}')
-  `);
+    const quotedTableName = quoteIdentifier(tableName);
+    const fileNameLiteral = sqlStringLiteral(file.name);
+    await connection.query(
+        `CREATE OR REPLACE TABLE ${quotedTableName} AS SELECT * FROM read_csv_auto(${fileNameLiteral})`
+    );
 
     const columns = await getTableSchema(tableName);
     const rowCount = await getTableRowCount(tableName);
@@ -176,10 +239,11 @@ export async function loadParquetFile(
     await db!.registerFileBuffer(file.name, uint8Array);
 
     const connection = await getConnection();
-    await connection.query(`
-    CREATE OR REPLACE TABLE "${tableName}" AS 
-    SELECT * FROM read_parquet('${file.name}')
-  `);
+    const quotedTableName = quoteIdentifier(tableName);
+    const fileNameLiteral = sqlStringLiteral(file.name);
+    await connection.query(
+        `CREATE OR REPLACE TABLE ${quotedTableName} AS SELECT * FROM read_parquet(${fileNameLiteral})`
+    );
 
     const columns = await getTableSchema(tableName);
     const rowCount = await getTableRowCount(tableName);
@@ -204,10 +268,11 @@ export async function loadJSONFile(
     await db!.registerFileBuffer(file.name, uint8Array);
 
     const connection = await getConnection();
-    await connection.query(`
-    CREATE OR REPLACE TABLE "${tableName}" AS 
-    SELECT * FROM read_json_auto('${file.name}')
-  `);
+    const quotedTableName = quoteIdentifier(tableName);
+    const fileNameLiteral = sqlStringLiteral(file.name);
+    await connection.query(
+        `CREATE OR REPLACE TABLE ${quotedTableName} AS SELECT * FROM read_json_auto(${fileNameLiteral})`
+    );
 
     const columns = await getTableSchema(tableName);
     const rowCount = await getTableRowCount(tableName);
@@ -269,7 +334,8 @@ export async function loadDataFile(
  */
 export async function dropTable(tableName: string): Promise<void> {
     const connection = await getConnection();
-    await connection.query(`DROP TABLE IF EXISTS "${tableName}"`);
+    const quotedTableName = quoteIdentifier(tableName);
+    await connection.query(`DROP TABLE IF EXISTS ${quotedTableName}`);
 }
 
 /**
@@ -284,4 +350,5 @@ export async function closeDuckDB(): Promise<void> {
         await db.terminate();
         db = null;
     }
+    initPromise = null;
 }
